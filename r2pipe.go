@@ -114,11 +114,12 @@ func newPipeCmd(file string) (*Pipe, error) {
 	if err == nil {
 		r2p.stdout, err = r2p.r2cmd.StdoutPipe()
 		if err == nil {
-			r2p.stderr, err = r2p.r2cmd.StdoutPipe()
-		}
-		if err = r2p.r2cmd.Start(); err == nil {
-			//Read the initial data
-			_, err = bufio.NewReader(r2p.stdout).ReadString('\x00')
+			r2p.stderr, err = r2p.r2cmd.StderrPipe()
+			if err = r2p.r2cmd.Start(); err == nil {
+				//Read the initial data
+				_, err = bufio.NewReader(r2p.stdout).
+					ReadString('\x00')
+			}
 		}
 	}
 	return r2p, err
@@ -149,18 +150,17 @@ func (r2p *Pipe) Cmd(cmd string) (string, error) {
 
 		return "", nil
 	}
-
 	if _, err := fmt.Fprintln(r2p, cmd); err != nil {
 		return "", err
 	}
-
 	buf, err := bufio.NewReader(r2p).ReadString('\x00')
 	if err != nil {
 		return "", err
 	}
-	errStr, err := bufio.NewReader(r2p.stderr).ReadString('\x00')
-	if err == nil && errStr != "" {
-		err = fmt.Errorf("r2 error: %s", errStr)
+	var errStr []byte
+	_, err = r2p.ReadErr(errStr)
+	if err == nil && len(errStr) != 0 {
+		err = fmt.Errorf("r2 error: %s", string(errStr))
 	}
 	return strings.TrimRight(buf, "\n\x00"), err
 }
